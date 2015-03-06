@@ -23,12 +23,25 @@
 
 #include <opencv2/opencv.hpp>
 using cv::Mat;
+using cv::Range;
 
 class LauraConvolution
 {
+	//Function for convolution engine that performs convolution.
+	static float convFunc(Mat& inhood, Mat& filter, Range xidx,
+		Range yidx, void* varargs);
+	//Function for convolution engine that performs hit and miss.
+	static float hitAndMissFunc(Mat& inhood, 
+		Mat& filter, Range xidx, Range yidx, void* varargs);
 public:
 	LauraConvolution();
 	~LauraConvolution();
+
+	//Visits each pixel in turn and applies the function in *func
+	//varargs is a pointer to more data for passing into *func.
+	static Mat convolutionEngine(Mat& img, Mat& filter, void* varargs,
+		float (*func) (Mat& inhood, Mat& filter, Range xidx, 
+			Range yidx, void* varargs));
 
 	//Produces an image with mirror-padded boundaries.
 	//left, right, top, and bottom are number of pixels
@@ -44,6 +57,12 @@ public:
 
 	//Convolve image img with filter.
 	static Mat convolve(Mat& img, Mat& filter);
+
+	//Hit and miss morphology. Blank is indicated by a value in the 
+	//filter that is not 0 or 1.
+	//WARNING: You may get a completely black image if you try to
+	//hit and miss an image that is not made of 0s and 1s
+	static Mat hitAndMiss(Mat& img, Mat& filter);
 };
 
 #endif //!defined __LAURACONVOLUTION_H__

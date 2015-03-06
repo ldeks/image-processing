@@ -59,6 +59,14 @@ LauraFilters::gaussian(int fsize1, int fsize2, float sigma)
 }
 
 Mat
+LauraFilters::laplacian()
+{
+	Mat ret = (cv::Mat_<float>(3, 3) 
+		<< 1, 1, 1, 1, -8, 1, 1, 1, 1);
+	return ret;
+}
+
+Mat
 LauraFilters::LoG(int fsize, float sigma)
 {
 	//Make return matrix. _ for element access.
@@ -253,6 +261,57 @@ LauraFilters::nonmaximaSuppression3x3(
 			}
 
 			if (!isMax)
+				ret_(i, j) = 0.0f;
+		}
+	}
+
+	return ret;
+}
+
+Mat
+LauraFilters::nonmaximaSuppression3x3(Mat& mag)
+{
+	//Make return matrix and _ for element access.
+	cv::Mat_<float> mag_ = mag;
+	Mat ret = mag.clone();
+	cv::Mat_<float> ret_ = ret;
+
+	//For each pixel in process (not considering the boundary).
+	for (int i = 1; i < mag.rows - 1; ++i)
+	{
+		for (int j = 1; j < mag.cols - 1; ++j)
+		{
+			//If the pixel is pure black, ignore it.
+			if (!mag_(i, j)) continue;
+
+			//Determine whether or not pix in process
+			//is a local maximum in the blob.
+			//Using the book's numbering:
+			//P4 P3 P2
+			//P5 P0 P1
+			//P6 P7 P8
+			bool isMax;
+			int count = 0;
+			float p0, p1, p2, p3, p4, p5, p6, p7, p8;
+			p0 = mag_(i, j);
+			p4 = mag_(i-1, j-1);
+			p8 = mag_(i+1, j+1);
+			isMax = isLocalMax(p0, p4, p8);
+			if(isMax) count++;
+			p1 = mag_(i, j+1);
+			p5 = mag_(i, j-1);
+			isMax = isLocalMax(p0, p1, p5);
+			if(isMax) count++;
+			p2 = mag_(i-1, j+1);
+			p6 = mag_(i+1, j-1);
+			isMax = isLocalMax(p0, p2, p6);
+			if(isMax) count++;
+			p3 = mag_(i-1, j);
+			p7 = mag_(i+1, j);
+			isMax = isLocalMax(p0, p3, p7);
+			if(isMax) count++;
+
+			if (count < 4)
 				ret_(i, j) = 0.0f;
 		}
 	}

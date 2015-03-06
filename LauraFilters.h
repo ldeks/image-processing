@@ -38,6 +38,9 @@ public:
 	static Mat gaussian(int fsize1,
 		int fsize2, float sigma);
 
+	//Generates a 3x3 Laplacian filter.
+	static Mat laplacian();
+
 	//Generates a 2D Laplacian of Gaussian filter
 	//of size fsize x fsize and std. dev.
 	//sigma.
@@ -66,6 +69,9 @@ public:
 	//Only examines a 3x3 neighborhood.
 	static Mat nonmaximaSuppression3x3(
 		Mat& mag, Mat& angle);
+	//Performs nonmaxima suppression on blobs (all angles at once).
+	//Only works on a 3x3.
+	static Mat nonmaximaSuppression3x3(Mat& mag);
 	//Helper for nonmaximaSuppression.
 	//Determine whether p0 is a local
 	//max in comparison with p1 and p2.

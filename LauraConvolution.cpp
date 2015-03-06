@@ -34,6 +34,102 @@ LauraConvolution::~LauraConvolution()
 }
 
 Mat
+LauraConvolution::convolutionEngine(Mat& img, Mat& filter, 
+	void* varargs,
+	float (*func) (Mat& inhood, Mat& filter, Range xidx, Range yidx, 
+	void* varargs))
+{
+	//If you passed a filter under 3x3, you get a 
+	//3x3 mean filter. Sorry.
+	if ((filter.rows < 3) & (filter.cols < 3))
+	{
+		filter = Mat::ones(3, 3, CV_32F);
+		filter = filter/9.0f;
+	}
+
+	//Compute borders.
+	int left = filter.cols/2;
+	int right = filter.cols - left - 1;
+	int top = filter.rows/2;
+	int bottom = filter.rows - top - 1;
+	
+	//Add mirrored boundaries.
+	Mat imgMir = addMirroredBoundaries(
+		img, left, right, top, bottom);
+	
+	//Compute indices to examine.
+	Range xidx = Range(-left, right + 1);
+	Range yidx = Range(-top, bottom + 1);
+
+	//Make conv output matrix.
+	//Mat_ is templated Mat for element-wise ops
+	Mat imgConv = Mat::zeros(imgMir.rows, imgMir.cols, CV_32F);
+	Mat_<float> imgConv_ = imgConv;
+
+	//Perform the filtering
+	for (int i = top; i < imgMir.rows - bottom; ++i)
+	{
+		for (int j = left; j < imgMir.cols - right; ++j)
+		{
+			//Compute indices.
+			Range xidxCurrent = xidx;
+			xidxCurrent.start += j;
+			xidxCurrent.end += j;
+			Range yidxCurrent = yidx;
+			yidxCurrent.start += i;
+			yidxCurrent.end += i;
+
+			//Get neighborhood
+			Mat inhood = imgMir(yidxCurrent, xidxCurrent);
+
+			assert(inhood.type() == filter.type());
+
+			//Apply neighborhood operation.
+			imgConv_(i, j) = (*func)(inhood, filter, 
+				xidxCurrent, yidxCurrent, varargs);
+		}
+	}
+
+	return removeBoundaries(imgConv, left, right,
+		top, bottom);
+}
+
+float
+LauraConvolution::convFunc(Mat& inhood, Mat& filter, 
+	Range xidx, Range yidx, void* varargs)
+{
+	return inhood.dot(filter);
+}
+
+float
+LauraConvolution::hitAndMissFunc(Mat& inhood, Mat& filter, 
+	Range xidx, Range yidx, void* varargs)
+{
+	bool hit = true; //Assume the hit is true, until proven wrong.
+	Mat_<float> inhood_ = inhood;
+	Mat_<float> filter_ = filter;
+
+	for (int i = 0; i < inhood.rows; ++i)
+	{
+		for (int j = 0; j < inhood.cols; ++j)
+		{
+			if ((0 != filter_(i, j)) && (1 != filter_(i, j)))
+				continue;  //This is a skip pixel.
+
+			if (filter_(i, j) != inhood_(i, j)) 
+			{
+				hit = false;
+				break;
+			}
+		}
+	}
+
+	float ret = inhood_(inhood.rows/2, inhood.cols/2);
+	if (hit) return !ret;
+	else return ret;
+}
+
+Mat
 LauraConvolution::addMirroredBoundaries(
 	Mat& img, int left, int right, int top,
 	int bottom)
@@ -95,55 +191,11 @@ LauraConvolution::removeBoundaries(Mat& img,
 Mat
 LauraConvolution::convolve(Mat& img, Mat& filter)
 {
-	//If you passed a filter under 3x3, you get a 
-	//3x3 mean filter. Sorry.
-	if ((filter.rows < 3) & (filter.cols < 3))
-	{
-		filter = Mat::ones(3, 3, CV_32F);
-		filter = filter/9.0f;
-	}
+	return convolutionEngine(img, filter, NULL, convFunc);
+}
 
-	//Compute borders.
-	int left = filter.cols/2;
-	int right = filter.cols - left - 1;
-	int top = filter.rows/2;
-	int bottom = filter.rows - top - 1;
-	
-	//Add mirrored boundaries.
-	Mat imgMir = addMirroredBoundaries(
-		img, left, right, top, bottom);
-	
-	//Compute indices to examine.
-	Range xidx = Range(-left, right + 1);
-	Range yidx = Range(-top, bottom + 1);
-
-	//Make conv output matrix.
-	//Mat_ is templated Mat for element-wise ops
-	Mat imgConv = Mat::zeros(imgMir.rows, imgMir.cols, CV_32F);
-	Mat_<float> imgConv_ = imgConv;
-
-	//Perform the filtering
-	for (int i = top; i < imgMir.rows - bottom; ++i)
-	{
-		for (int j = left; j < imgMir.cols - right; ++j)
-		{
-			//Compute indices.
-			Range xidxCurrent = xidx;
-			xidxCurrent.start += j;
-			xidxCurrent.end += j;
-			Range yidxCurrent = yidx;
-			yidxCurrent.start += i;
-			yidxCurrent.end += i;
-
-			//Get neighborhood
-			Mat inhood = imgMir(yidxCurrent, xidxCurrent);
-
-			assert(inhood.type() == filter.type());
-			//Multiply and add.
-			imgConv_(i, j) = inhood.dot(filter);
-		}
-	}
-
-	return removeBoundaries(imgConv, left, right,
-		top, bottom);
+Mat
+LauraConvolution::hitAndMiss(Mat& img, Mat& filter)
+{
+	return convolutionEngine(img, filter, NULL, hitAndMissFunc);
 }
